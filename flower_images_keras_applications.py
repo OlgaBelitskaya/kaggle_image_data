@@ -112,7 +112,7 @@ print([x_train.shape,x_test.shape,x_valid.shape,
 #### InceptionV3
 """
 
-steps,epochs=12,10
+steps,epochs=16,15
 iv3_model,fr_history,unfr_history=[],[],[]
 def inceptionv3_train():
     global steps,epochs,iv3_model,fr_history,unfr_history
@@ -121,6 +121,11 @@ def inceptionv3_train():
     x=iv3base_model.output
     x=GlobalAveragePooling2D()(x)
     x=Dense(512,activation='relu')(x)
+    x=LeakyReLU(alpha=.02)(x)
+    x=Dropout(.25)(x)        
+    x=Dense(64)(x)
+    x=LeakyReLU(alpha=.02)(x)
+    x=Dropout(.25)(x)
     y=Dense(10,activation='softmax')(x)
     iv3_model=Model(inputs=iv3base_model.input,outputs=y)
     # freezing convolutional layers
@@ -138,7 +143,7 @@ def inceptionv3_train():
     data_generator=ImageDataGenerator(
         shear_range=.2,zoom_range=.2,horizontal_flip=True)
     fr_history=iv3_model.fit_generator(data_generator.flow(
-        x_train,y_train,batch_size=16),
+        x_train,y_train,batch_size=12),
         steps_per_epoch=steps,epochs=epochs,verbose=2, 
         validation_data=(x_valid,y_valid),
         callbacks=[checkpointer,early_stopping,lr_reduction])
@@ -150,7 +155,7 @@ def inceptionv3_train():
     iv3_model.compile(loss='sparse_categorical_crossentropy',
                       optimizer='nadam',metrics=['accuracy'])
     unfr_history=iv3_model.fit_generator(data_generator.flow(
-        x_train,y_train,batch_size=16),verbose=2,
+        x_train,y_train,batch_size=12),verbose=2,
         steps_per_epoch=steps,epochs=epochs,
         callbacks=[checkpointer,early_stopping,lr_reduction],
         validation_data=(x_valid,y_valid))
