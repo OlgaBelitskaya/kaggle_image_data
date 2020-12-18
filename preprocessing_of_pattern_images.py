@@ -7,7 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1Y7L5E8GrbZ9qBUGvgq6INPmGF8LLdt3B
 
 <h1 class='font-effect-3d' style='color:firebrick; font-family:Akronim; font-size:200%;'> Code Modules, Helpful Functions, Styling, and Links</h1>
-#### [Github Version](https://github.com/OlgaBelitskaya/deep_learning_projects/blob/master/DL_PP5) & [Colaboratory Version](https://colab.research.google.com/drive/1Tt3qZePsf2P6kNNao-hQ58DlG71Abj5a)
+<h2><a style='font-family:Akronim;' href='https://github.com/OlgaBelitskaya/deep_learning_projects/blob/master/DL_PP5'>Github Version &</a> <a style='font-family:Akronim;' href='https://colab.research.google.com/drive/1Tt3qZePsf2P6kNNao-hQ58DlG71Abj5a'>Colaboratory Version</a></h2>
 """
 
 # Commented out IPython magic to ensure Python compatibility.
@@ -15,42 +15,37 @@ Original file is located at
 # <style> 
 # @import url('https://fonts.googleapis.com/css?family=Akronim|Roboto&effect=3d');
 # body {background-color:#f7e8e8;} 
-# a,h4 {color:crimson; font-family:Roboto;}
+# h4 {color:crimson; font-family:Roboto;}
 # span {color:black; text-shadow:4px 4px 4px #aaa;}
-# div.output_prompt {color:crimson;} 
-# div.input_prompt {color:firebrick;} 
-# div.output_area pre,div.output_subarea {font-size:15px; color:crimson}
+# div.output_prompt {color:crimson; font-family:Akronim;} 
+# div.input_prompt {color:firebrick; font-family:Akronim;} 
+# div.output_area pre {font-size:14px; color:crimson; font-family:Roboto;}
+# div.output_subarea {font-size:16px; color:crimson}
 # div.output_stderr pre {background-color:#f7e8e8;}
 # </style>
 
 import warnings; warnings.filterwarnings('ignore')
-import h5py,pandas as pd,numpy as np,pylab as pl
-import seaborn as sn,keras as ks,tensorflow as tf
-from skimage.transform import resize
-from skimage import color, measure
+import h5py,os,pandas as pd,numpy as np
+import seaborn as sn,pylab as pl
+import keras as ks,tensorflow as tf
+from skimage import io,transform,color,measure
 from IPython.core.magic import register_line_magic
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder
-np.set_printoptions(precision=6)
-pl.style.use('seaborn-whitegrid')
-fw='weights.decor.hdf5'
-n=np.random.choice(484,size=6,replace=False)
-from keras.callbacks import ModelCheckpoint,EarlyStopping
-from keras.callbacks import ReduceLROnPlateau
-from keras.models import Sequential,load_model,Model
-from keras.layers import Input,Activation,Dense,LSTM
-from keras.layers import Flatten,Dropout,BatchNormalization
-from keras.layers import Conv2D,MaxPooling2D,GlobalMaxPooling2D
-from keras.layers.advanced_activations import PReLU,LeakyReLU
+from keras.callbacks import \
+ModelCheckpoint,EarlyStopping,ReduceLROnPlateau
+from keras.models import Sequential,Model
+from keras.layers import Input,Activation,Dense,\
+LSTM,Flatten,Dropout,BatchNormalization,\
+Conv2D,MaxPooling2D,GlobalMaxPooling2D,\
+GlobalAveragePooling2D,PReLU,LeakyReLU
 from keras import __version__
 print('keras version:', __version__)
 print('tensorflow version:',tf.__version__)
+pl.style.use('seaborn-whitegrid')
+fw='/checkpoints'
+np.set_printoptions(precision=6)
+n=np.random.choice(484,size=6,replace=False)
 
-def ohe(x): 
-    return OneHotEncoder(n_values='auto')\
-           .fit(x.reshape(-1,1))\
-           .transform(x.reshape(-1,1))\
-           .toarray().astype('int64')
 def tts(X,y): 
     x_train,x_test,y_train,y_test=\
     train_test_split(X,y,test_size=.2,random_state=1)
@@ -58,35 +53,31 @@ def tts(X,y):
     x_valid,y_valid=x_test[:n],y_test[:n]
     x_test,y_test=x_test[n:],y_test[n:]
     return x_train,x_valid,x_test,y_train,y_valid,y_test
-def history_plot(fit_history):
-    pl.figure(figsize=(12,10)); pl.subplot(211)
-    keys=list(fit_history.history.keys())[0:4]
-    pl.plot(fit_history.history[keys[0]],
-            color='crimson',label='train')
-    pl.plot(fit_history.history[keys[2]],
-            color='firebrick',label='valid')
-    pl.xlabel("Epochs"); pl.ylabel("Loss")
-    pl.legend(); pl.grid()
-    pl.title('Loss Function')     
-    pl.subplot(212)
-    pl.plot(fit_history.history[keys[1]],
-            color='crimson',label='train')
-    pl.plot(fit_history.history[keys[3]],
-            color='firebrick',label='valid')
-    pl.xlabel("Epochs"); pl.ylabel("Accuracy")    
-    pl.legend(); pl.grid()
-    pl.title('Accuracy'); pl.show()
+def history_plot(fit_history,fig_size):
+    keys=list(fit_history.history.keys())
+    list_history=[fit_history.history[keys[i]] 
+                  for i in range(len(keys))]
+    dfkeys=pd.DataFrame(list_history).T
+    dfkeys.columns=keys
+    fig=pl.figure(figsize=(fig_size,fig_size))
+    ax1=fig.add_subplot(2,1,1)
+    dfkeys.iloc[:,[0,2]].plot(
+        ax=ax1,color=['crimson','firebrick'],grid=True)
+    ax2=fig.add_subplot(2,1,2)
+    dfkeys.iloc[:,[1,3]].plot(
+        ax=ax2,color=['crimson','firebrick'],grid=True)
+    pl.tight_layout(); pl.show()
 def history_plot2(fit_history):
     lk=[1,2,3]
     keys=list(fit_history.history.keys())[8:]
-    pl.figure(figsize=(12,10)); pl.subplot(211)
+    pl.figure(figsize=(10,10)); pl.subplot(211)
     pl.plot(fit_history.history[keys[0]],
             color='crimson',label='valid 1')
     pl.plot(fit_history.history[keys[1]],
             color='firebrick',label='valid 2')
     pl.plot(fit_history.history[keys[2]],
-            color='#FF355E',label='valid 3')
-    pl.xlabel("Epochs"); pl.ylabel("Loss")
+            color='#ff355e',label='valid 3')
+    pl.xlabel('Epochs'); pl.ylabel('Loss')
     pl.legend(); pl.grid(); pl.title('Loss Function')     
     pl.subplot(212)
     pl.plot(fit_history.history[keys[3]],
@@ -94,82 +85,93 @@ def history_plot2(fit_history):
     pl.plot(fit_history.history[keys[4]],
             color='firebrick',label='valid 2')
     pl.plot(fit_history.history[keys[5]],
-            color='#FF355E',label='valid 3')
-    pl.xlabel("Epochs"); pl.ylabel("Accuracy")    
-    pl.legend(); pl.grid(); pl.title('Accuracy'); pl.show()
+            color='#ff355e',label='valid 3')
+    pl.xlabel('Epochs'); pl.ylabel('Accuracy')    
+    pl.legend(); pl.grid(); pl.title('Accuracy')
+    pl.tight_layout(); pl.show()
 
 """<h1 class='font-effect-3d' style='color:firebrick; font-family:Akronim; font-size:200%;'> Data Loading and Exploration </h1>"""
 
-data=pd.read_csv("../input/decor.csv")
+url='../input/traditional-decor-patterns/'
+data=pd.read_csv(url+'decor.csv')
 data.loc[n]
 
-pl.figure(figsize=(12,5))
-sn.countplot(x="decor",data=data,facecolor=(0,0,0,0),
-             linewidth=7,linestyle='-.',
-             edgecolor=sn.color_palette("flag",7))
-pl.title('Decor Distribution',fontsize=20);
+pl.figure(figsize=(10,5))
+sn.countplot(
+    x='decor',data=data,facecolor=(0,0,0,0),
+    linewidth=7,linestyle='-.',alpha=.7,fill=None,
+    edgecolor=sn.color_palette('flag',7))
+pl.title('Decor Distribution',fontsize=20)
+pl.tight_layout();
 
-pl.figure(figsize=(12,5))
-sn.countplot(x="decor",hue="country",data=data,palette='bwr_r')
-pl.legend(loc=1); ti='Decor Distribution Grouped by Country'
+pl.figure(figsize=(10,5))
+sn.countplot(
+    x='decor',hue='country',data=data,palette='Reds')
+pl.legend(loc=1); pl.tight_layout()
+ti='Decor Distribution Grouped by Country'
 pl.title(ti,fontsize=20);
+
+with h5py.File(url+'DecorColorImages.h5','r') as f:
+    keys=list(f.keys())
+    [countries,decors,images,types]=\
+    [np.array(f[keys[i]]) for i in range(4)]
+    f.close()
+for el in [countries,decors,types]: el-=1 
+sh=[el.shape for el in [countries,decors,images,types]]
+pd.DataFrame(sh,index=keys)
 
 print(set(data['decor']))
 print(set(data['country']))
-
-f=h5py.File('../input/DecorColorImages.h5','r')
-keys=list(f.keys())
-[countries,decors,images,types]=\
-[np.array(f[keys[i]]) for i in range(4)]
-sh=[el.shape for el in [countries,decors,images,types]]
-pd.DataFrame(sh,index=keys)
+print(set(decors))
+print(set(countries))
 
 """<h1 class='font-effect-3d' style='color:firebrick; font-family:Akronim; font-size:200%;'> Implementation of Preprocessing Functions </h1>"""
 
 images=images/255
-fig=pl.figure(figsize=(12,5))
+fig=pl.figure(figsize=(10,5))
 for i,idx in enumerate(n):
     ax=fig.add_subplot(2,3,i+1,xticks=[],yticks=[])
     ax.imshow(images[idx])
-    ax.set_title(data['country'][idx]+'; '+\
-                 data['decor'][idx]+'; '+data['type'][idx])
+    ti=data['country'][idx]+'; '+\
+       data['decor'][idx]+'; '+data['type'][idx]
+    ax.set_title(ti,color='firebrick')
+pl.tight_layout()
 
 gray_images=np.dot(images[...,:3],[.299,.587,.114])
 pl.figure(figsize=(3,3))
 n=np.random.choice(484,size=1,replace=False)[0]
 pl.imshow(images[n])
-pl.title(data['country'][n]+'; '+\
-         data['decor'][n]+'; '+data['type'][n])
+ti=data['country'][n]+'; '+\
+   data['decor'][n]+'; '+data['type'][n]
+pl.title(ti,color='firebrick'); pl.tight_layout()
 pl.imshow(gray_images[n],cmap=pl.cm.bone); pl.show()
 gray_images=gray_images.reshape(-1,150,150,1)
 
-ccountries,cdecors,ctypes=\
-ohe(countries),ohe(decors),ohe(types)
-ctargets=np.concatenate((ccountries,cdecors),axis=1)
-ctargets=np.concatenate((ctargets,ctypes),axis=1)
+targets=np.vstack((countries,decors))
+targets=np.vstack((targets,types)).T
 pd.DataFrame([images.shape,gray_images.shape,
-              ccountries.shape,cdecors.shape,
-              ctypes.shape,ctargets.shape])
+              countries.shape,decors.shape,
+              types.shape,targets.shape])
 
 # spliting the data 
 # Color Images / Countries 
 x_train1,x_valid1,x_test1,\
-y_train1,y_valid1,y_test1=tts(images,ccountries)
+y_train1,y_valid1,y_test1=tts(images,countries)
 # Grayscaled Images / Countries 
 x_train2,x_valid2,x_test2,\
-y_train2,y_valid2,y_test2=tts(gray_images,ccountries)
+y_train2,y_valid2,y_test2=tts(gray_images,countries)
 # Color Images / Decors 
 x_train3,x_valid3,x_test3,\
-y_train3,y_valid3,y_test3=tts(images,cdecors)
+y_train3,y_valid3,y_test3=tts(images,decors)
 # Grayscaled Images / Decors 
 x_train4,x_valid4,x_test4,\
-y_train4,y_valid4,y_test4=tts(gray_images,cdecors)
+y_train4,y_valid4,y_test4=tts(gray_images,decors)
 # Color Images / Multi-Label Targets
 x_train5,x_valid5,x_test5,\
-y_train5,y_valid5,y_test5=tts(images,ctargets)
+y_train5,y_valid5,y_test5=tts(images,targets)
 # Grayscaled Images / Multi-Label Targets 
 x_train6,x_valid6,x_test6,\
-y_train6,y_valid6,y_test6=tts(gray_images,ctargets)
+y_train6,y_valid6,y_test6=tts(gray_images,targets)
 sh=[el.shape for el in \
 [x_train1,y_train1,x_valid1,y_valid1,x_test1,y_test1,
  x_train3,y_train3,x_valid3,y_valid3,x_test3,y_test3,
@@ -179,15 +181,15 @@ sh=[el.shape for el in \
  x_train6,y_train6,x_valid6,y_valid6,x_test6,y_test6]]
 pd.DataFrame(sh)
 
-y_train5_list=[y_train5[:,:4],y_train5[:,4:11],y_train5[:,11:]]
-y_test5_list=[y_test5[:,:4],y_test5[:,4:11],y_test5[:,11:]]
-y_valid5_list=[y_valid5[:,:4],y_valid5[:,4:11],y_valid5[:,11:]]
-y_train6_list=[y_train6[:,:4],y_train6[:,4:11],y_train6[:,11:]]
-y_test6_list=[y_test6[:,:4],y_test6[:,4:11],y_test6[:,11:]]
-y_valid6_list=[y_valid6[:,:4],y_valid6[:,4:11],y_valid6[:,11:]]
+y_train5_list=[y_train5[:,0],y_train5[:,1],y_train5[:,2]]
+y_test5_list=[y_test5[:,0],y_test5[:,1],y_test5[:,2]]
+y_valid5_list=[y_valid5[:,0],y_valid5[:,1],y_valid5[:,2]]
+y_train6_list=[y_train6[:,0],y_train6[:,1],y_train6[:,2]]
+y_test6_list=[y_test6[:,0],y_test6[:,1],y_test6[:,2]]
+y_valid6_list=[y_valid6[:,0],y_valid6[:,1],y_valid6[:,2]]
 
 """<h1 class='font-effect-3d' style='color:firebrick; font-family:Akronim; font-size:200%;'> Image Contours </h1>
-#### Just for fun
+<h2 style='font-family:Akronim;'>Just for fun</h2>
 """
 
 @register_line_magic
@@ -226,19 +228,23 @@ def model(leaky_alpha):
     model.add(Dropout(.25))     
     model.add(Dense(7))
     model.add(Activation('softmax'))   
-    model.compile(loss='categorical_crossentropy',
+    model.compile(loss='sparse_categorical_crossentropy',
                   optimizer='nadam',metrics=['accuracy'])   
     return model
 model=model(float(.005))
 
-checkpointer=ModelCheckpoint(filepath=fw,verbose=2,save_best_only=True)
-lr_reduction=ReduceLROnPlateau(monitor='val_loss',patience=5,
-                               verbose=2,factor=.75)
-estopping=EarlyStopping(monitor='val_loss',patience=15,verbose=2)
-history=model.fit(x_train3,y_train3,epochs=100,batch_size=16,verbose=2,
-                  validation_data=(x_valid3,y_valid3),
-                  callbacks=[checkpointer,lr_reduction,estopping])
+estopping=EarlyStopping(
+    monitor='val_loss',patience=20,verbose=2)
+checkpointer=ModelCheckpoint(
+    filepath=fw,save_best_only=True,verbose=2,
+    save_weights_only=True,monitor='val_acc',mode='max')
+lr_reduction=ReduceLROnPlateau(
+    monitor='val_loss',verbose=2,patience=5,factor=.8)
+history=model.fit(
+    x_train3,y_train3,epochs=100,batch_size=16,verbose=2,
+    validation_data=(x_valid3,y_valid3),
+    callbacks=[checkpointer,lr_reduction,estopping])
 
-history_plot(history)
+history_plot(history,10)
 model.load_weights(fw)
-model.evaluate(x_test3,y_test3)
+model.evaluate(x_test3,y_test3,verbose=0)
