@@ -38,6 +38,7 @@ from keras.layers import Input,Activation,Dense,\
 LSTM,Flatten,Dropout,BatchNormalization,\
 Conv2D,MaxPooling2D,GlobalMaxPooling2D,\
 GlobalAveragePooling2D,PReLU,LeakyReLU
+from IPython.display import display,HTML
 from keras import __version__
 print('keras version:', __version__)
 print('tensorflow version:',tf.__version__)
@@ -207,6 +208,70 @@ def vector(number):
 
 # Commented out IPython magic to ensure Python compatibility.
 # %vector 200
+
+"""<h1 class='font-effect-3d' style='color:firebrick; font-family:Akronim; font-size:200%;'> Image Animation</h1>
+<h2 style='font-family:Akronim;'>Just for fun</h2>
+"""
+
+# Commented out IPython magic to ensure Python compatibility.
+# %%writefile sage_animate.html
+# <!DOCTYPE HTML>
+# <html>
+#   <head>
+#     <meta charset='utf-8'>
+#     <meta name='viewport' content='width=device-width'>
+#     <script src='https://sagecell.sagemath.org/static/embedded_sagecell.js'></script>
+#     <script>$(function () {
+#         sagecell.makeSagecell(
+#             {inputLocation:'div.sagehtml',evalButtonText:'run',
+#              template:sagecell.templates.minimal}); });
+#     </script>
+#   </head>
+#   <body>
+# <div class='sagehtml'><script type='text/x-sage'>
+# import warnings,numpy as np
+# from skimage import io,transform 
+# warnings.filterwarnings('ignore')
+# def load_img(file_path,file_name,img_size): 
+#     img=io.imread(file_path+file_name)
+#     img=transform.resize(img,[img_size,img_size]) 
+#     return img[:,:,:3]/255 
+# def interpolate_hypersphere(v1,v2,steps):
+#     v1norm=np.linalg.norm(v1)
+#     v2norm=np.linalg.norm(v2)
+#     v2normalized=v2*(v1norm/v2norm)
+#     vectors=[]
+#     for step in range(steps):
+#         interpolated=v1+(v2normalized-v1)*step/(steps-int(1))
+#         interpolated_norm=np.linalg.norm(interpolated)
+#         interpolated_normalized=\
+#         interpolated*(v1norm/interpolated_norm)
+#         vectors.append(interpolated_normalized)
+#     return np.array(vectors)*255
+# file_path='https://olgabelitskaya.gitlab.io/images/'
+# @interact
+# def _vector(file1=[1,2,3,4,5],file2=[2,3,4,5,6],
+#             steps=list(range(20,100,10)),
+#             img_size=[300,350,400]):
+#     file_path='https://olgabelitskaya.gitlab.io/images/'
+#     file_name1='02_00%s'%(file1)+'.png'
+#     file_name2='02_00%s'%(file2)+'.png'
+#     img1=load_img(file_path,file_name1,img_size)
+#     img2=load_img(file_path,file_name2,img_size)
+#     imgs=np.vstack([interpolate_hypersphere(img1,img2,steps),
+#                     interpolate_hypersphere(img2,img1,steps)])
+#     a=animate([matrix_plot(imgs[i],transparent=True,frame=False,
+#                            figsize=(3,3)) for i in range(2*steps)])
+#     a.show()
+# </script></div><br/>
+#   </body>
+# </html>
+
+width=600; height=650; file='sage_animate.html'
+string="""<div id='html_string2'><iframe src='"""+\
+    file+"""' height="""+str(height+50)+\
+    """ width="""+str(width+50)+"""></iframe></div>"""
+display(HTML(string))
 
 """<h1 class='font-effect-3d' style='color:firebrick; font-family:Akronim; font-size:200%;'> One Simple CNN Example </h1>"""
 
