@@ -9,33 +9,39 @@ Original file is located at
 ## Code Modules & Functions
 """
 
-!pip install git+https://github.com/tensorflow/docs
-
 import warnings; warnings.filterwarnings('ignore')
 import pandas as pd,numpy as np,tensorflow as tf
-import h5py,imageio,os
+import h5py,imageio,os,torch
 import seaborn as sn,pylab as pl
-from keras.preprocessing import image as kimage
-from tensorflow_docs.vis import embed
-from tqdm import tqdm
+from tensorflow.keras.preprocessing import image as tkimg
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from skimage import io; from tqdm import tqdm
+from ipywidgets import widgets
 from PIL import ImageFile
-ImageFile.LOAD_TRUNCATED_IMAGES=True 
-fpath='../input/tomato-cultivars/'
+ImageFile.LOAD_TRUNCATED_IMAGES=True
+from torch.utils.data import DataLoader as tdl
+from torch.utils.data import Dataset as tds
+from torchvision import transforms,utils
+dev=torch.device('cuda:0' \
+if torch.cuda.is_available() else 'cpu')
+from IPython.core.magic import register_line_magic
+from IPython.display import Image
+file_path='../input/tomato-cultivars/'
 
-def path_to_tensor(img_path,fpath=fpath):
-    img=kimage.load_img(fpath+img_path, 
-                        target_size=(160,160))
-    x=kimage.img_to_array(img)
-    return np.expand_dims(x,axis=0)
-def paths_to_tensor(img_paths):
-    tensor_list=[path_to_tensor(img_path) 
-                 for img_path in tqdm(img_paths)]
-    return np.vstack(tensor_list)
+def paths2tensor(img_paths,file_path,img_size):
+    tensor=[]
+    for img_path in tqdm(img_paths):
+        img0=tkimg.load_img(
+            file_path+img_path,
+            target_size=(img_size,img_size))
+        img=tkimg.img_to_array(img0)
+        tensor.append(np.expand_dims(img,axis=0))
+    return np.vstack(tensor)
 def animate(images):
-    converted_images=np.clip(images*255,0,255)\
-    .astype(np.uint8)
+    converted_images=np.clip(images*255,0,255).astype(np.uint8)
     imageio.mimsave('animation.gif',converted_images)
-    return embed.embed_file('animation.gif')
+    return Image(open('animation.gif','rb').read())
 def interpolate_hypersphere(v1,v2,steps):
     v1norm=tf.norm(v1)
     v2norm=tf.norm(v2)
@@ -48,7 +54,6 @@ def interpolate_hypersphere(v1,v2,steps):
         interpolated*(v1norm/interpolated_norm)
         vectors.append(interpolated_normalized)
     return tf.stack(vectors)
-
 def plcmap(cmap,n):
     return [pl.cm.get_cmap(cmap)(i/n)[:3] 
             for i in range(1,n+1)]
@@ -62,11 +67,13 @@ names=['Kumato','Beefsteak','Tigerella',
        'Cherokee Purple','Oxheart','Blue Berries',
        'San Marzano','Banana Legs',
        'German Orange Strawberry','Supersweet 100']
-flist=sorted(os.listdir(fpath))
-labels=np.array([int(el[:2]) for el in flist],
-               dtype='int32')-1
-images=np.array(paths_to_tensor(flist),
-                dtype='float32')/255
+file_list=sorted(os.listdir(file_path))
+img_size=160
+labels=np.array([int(el[:2]) for el in file_list],
+                dtype=np.int8)-1
+images=np.array(paths2tensor(
+    file_list,file_path=file_path,img_size=img_size),
+    dtype=np.float32)/255
 N=labels.shape[0]; n=int(.2*N)
 shuffle_ids=np.arange(N)
 np.random.RandomState(12).shuffle(shuffle_ids)
@@ -74,11 +81,22 @@ images,labels=images[shuffle_ids],labels[shuffle_ids]
 x_test,x_train=images[:n],images[n:]
 y_test,y_train=labels[:n],labels[n:]
 
-pd.DataFrame([[x_train.shape,x_test.shape],
-              [x_train.dtype,x_test.dtype],
-              [y_train.shape,y_test.shape],
-              [y_train.dtype,y_test.dtype]],               
-             columns=['train','test'])
+df=pd.DataFrame([[x_train.shape,x_test.shape],
+                 [x_train.dtype,x_test.dtype],
+                 [y_train.shape,y_test.shape],
+                 [y_train.dtype,y_test.dtype]],               
+                columns=['train','test'])
+start=100
+def display_imgs(images,labels,names,start):
+    fig=pl.figure(figsize=(6,3))
+    n=np.random.randint(0,start-1)
+    for i in range(n,n+6):
+        ax=fig.add_subplot(2,3,i-n+1,xticks=[],yticks=[])
+        ax.set_title(
+            names[labels[i]],color='darkred',fontsize=12)
+        ax.imshow((images[i]))
+    pl.tight_layout(); pl.show()
+display_imgs(images,labels,names,start); display(df)
 
 with h5py.File('TomatoCultivarImages.h5','w') as f:
     f.create_dataset('train_images',data=x_train)
@@ -87,21 +105,64 @@ with h5py.File('TomatoCultivarImages.h5','w') as f:
     f.create_dataset('test_labels',data=y_test)
 os.stat('TomatoCultivarImages.h5')
 
+x_valid,y_valid=x_test[:int(n/2)],y_test[:int(n/2)]
+x_test,y_test=x_test[int(n/2):],y_test[int(n/2):]
+
+class TData(tds):
+    def __init__(self,x,y):   
+        self.x=torch.tensor(x,dtype=torch.float32)
+        self.y=torch.tensor(y,dtype=torch.int32)
+    def __getitem__(self,index):
+        img,lbl=self.x[index],self.y[index]
+        return img,lbl
+    def __len__(self):
+        return self.y.shape[0]
+batch_size2=int(8); img_size2=int(64)
+n_train=batch_size2*(x_train.shape[0]//batch_size2)
+x_train2=np.transpose(x_train,(0,3,1,2))[:n_train]
+print(x_train2.mean(),x_train2.std())
+n_valid=batch_size2*(x_valid.shape[0]//batch_size2)
+x_valid2=np.transpose(x_valid,(0,3,1,2))[:n_valid]
+n_test=batch_size2*(x_test.shape[0]//batch_size2)
+x_test2=np.transpose(x_test,(0,3,1,2))[:n_test]
+random_seed=23
+train2=TData(x_train2,y_train[:n_train])
+valid2=TData(x_valid2,y_valid[:n_valid])
+test2=TData(x_test2,y_test[:n_test])
+dataloaders={'train':tdl(dataset=train2,shuffle=True,batch_size=batch_size2), 
+             'valid':tdl(dataset=valid2,shuffle=True,batch_size=batch_size2),
+             'test':tdl(dataset=test2,shuffle=True,batch_size=batch_size2)}
+del train2,valid2,test2
+
+# Commented out IPython magic to ensure Python compatibility.
+@register_line_magic
+def display_data_imgs(data):
+    global names
+    for images,labels in dataloaders[data]:  
+        print('Image dimensions: %s'%str(images.shape))
+        print('Label dimensions: %s'%str(labels.shape))
+        images=[np.transpose(images[i],(1,2,0)) 
+                for i in range(len(images))]
+        display_imgs(images,labels,names,2)
+        break
+# %display_data_imgs valid
+
 """## Data Representation"""
 
 set(labels)
 
 pl.figure(figsize=(10,5))
 sn.countplot(x=labels,facecolor=(0,0,0,0),
-             linewidth=7,linestyle='-.',
+             linewidth=5,linestyle='-.',
              edgecolor=plcmap('Reds',15))
-pl.title('Cultivar Distribution',fontsize=20);
+pl.title('Cultivar Distribution',
+         color='darkred',fontsize=15);
 
-n=np.random.randint(40)
-print('Label: ',y_test[n],
-      names[y_test[n]])
+n=np.random.randint(50)
+print('label: ',y_test[n],names[y_test[n]])
 pl.figure(figsize=(3,3))
 pl.imshow((x_test[n]));
 
-imgs=interpolate_hypersphere(x_train[0],x_train[1],180)
+imgs=np.vstack([interpolate_hypersphere(x_test[0],x_test[1],120),
+                interpolate_hypersphere(x_test[1],x_test[0],120)])
 animate(imgs)
