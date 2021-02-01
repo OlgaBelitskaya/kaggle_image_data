@@ -9,40 +9,41 @@ Original file is located at
 <h1>Code Modules & Functions</h1>
 """
 
-!pip install git+https://github.com/tensorflow/docs
+!pip install --upgrade pip \
+--user --quiet --no-warn-script-location
+!pip install git+https://github.com/tensorflow/docs \
+--user --quiet --no-warn-script-location
 
 import warnings; warnings.filterwarnings('ignore')
 import pandas as pd,numpy as np,tensorflow as tf
 import h5py,imageio,os,torch
 import seaborn as sn,pylab as pl
-from keras.preprocessing import image as kimage
+from tensorflow.keras.preprocessing import image as tkimg
 from tensorflow_docs.vis import embed
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from skimage import io
+from skimage import io; from tqdm import tqdm
 from ipywidgets import widgets
-from tqdm import tqdm
 from PIL import ImageFile,Image
 ImageFile.LOAD_TRUNCATED_IMAGES=True
 from torch.utils.data import DataLoader as tdl
 from torch.utils.data import Dataset as tds
 from torchvision import transforms,utils
-dev=torch.device("cuda:0" \
-if torch.cuda.is_available() else "cpu")
+dev=torch.device('cuda:0' \
+if torch.cuda.is_available() else 'cpu')
 from IPython.core.magic import register_line_magic
 
-def path_to_tensor(img_path,fpath):
-    img=kimage.load_img(fpath+img_path, 
-                        target_size=(160,160))
-    x=kimage.img_to_array(img)
-    return np.expand_dims(x,axis=0)
-def paths_to_tensor(img_paths,fpath):
-    tensor_list=[path_to_tensor(img_path,fpath) 
-                 for img_path in tqdm(img_paths)]
-    return np.vstack(tensor_list)
+def paths2tensor(img_paths,file_path,img_size):
+    tensor=[]
+    for img_path in tqdm(img_paths):
+        img0=tkimg.load_img(
+            file_path+img_path,
+            target_size=(img_size,img_size))
+        img=tkimg.img_to_array(img0)
+        tensor.append(np.expand_dims(img,axis=0))
+    return np.vstack(tensor)
 def animate(images):
-    converted_images=np.clip(images*255,0,255)\
-    .astype(np.uint8)
+    converted_images=np.clip(images*255,0,255).astype(np.uint8)
     imageio.mimsave('animation.gif',converted_images)
     return embed.embed_file('animation.gif')
 def interpolate_hypersphere(v1,v2,steps):
@@ -58,27 +59,27 @@ def interpolate_hypersphere(v1,v2,steps):
         vectors.append(interpolated_normalized)
     return tf.stack(vectors)
 def plcmap(cmap,n):
-    return [pl.cm.get_cmap(cmap)(i/n)[:3] 
-            for i in range(1,n+1)]
+    return [pl.cm.get_cmap(cmap)(i/n)[:3] for i in range(1,n+1)]
 
 """<h1>Ways of Data Processing</h1>"""
 
-fpath='../input/horse-breeds/'
+file_path='../input/horse-breeds/'
+img_size=160
 names=['Akhal-Teke','Appaloosa','Orlov Trotter',
        'Vladimir Heavy Draft','Percheron',
        'Arabian','Friesian']
-flist=sorted(os.listdir(fpath))
-labels=np.array([int(el[:2]) for el in flist],
-               dtype='int8')-1
-images=np.array(paths_to_tensor(flist,fpath=fpath),
-                dtype='float32')/255
+file_list=sorted(os.listdir(file_path))
+labels=np.array([int(el[:2]) for el in file_list],
+                dtype=np.int8)-1
+images=np.array(paths2tensor(
+    file_list,file_path=file_path,img_size=img_size),
+    dtype=np.float32)/255
 N=labels.shape[0]; n=int(.2*N)
 shuffle_ids=np.arange(N)
 np.random.RandomState(12).shuffle(shuffle_ids)
 images,labels=images[shuffle_ids],labels[shuffle_ids]
 x_test,x_train=images[:n],images[n:]
 y_test,y_train=labels[:n],labels[n:]
-
 pd.DataFrame([[x_train.shape,x_test.shape],
               [x_train.dtype,x_test.dtype],
               [y_train.shape,y_test.shape],
@@ -140,12 +141,10 @@ grayscale=False; img_size=128
 trans=transforms\
 .Compose([transforms.Resize((img_size,img_size)),
           transforms.ToTensor()])
-train=HorseBreedsData(csv_path=train_csv,
-                      img_dir=img_path,
-                      transform=trans)
-test=HorseBreedsData(csv_path=test_csv,
-                     img_dir=img_path,
-                     transform=trans)
+train=HorseBreedsData(
+    csv_path=train_csv,img_dir=img_path,transform=trans)
+test=HorseBreedsData(
+    csv_path=test_csv,img_dir=img_path,transform=trans)
 dataloaders={'train':tdl(dataset=train,batch_size=batch_size,
                          shuffle=True,num_workers=num_workers),
              'test':tdl(dataset=test,batch_size=batch_size,
@@ -153,54 +152,53 @@ dataloaders={'train':tdl(dataset=train,batch_size=batch_size,
 
 """<h1>Data Representation</h1>"""
 
-fpath='../input/horse-breeds/'
-set(labels)
-
 pl.figure(figsize=(10,4))
 sn.countplot(x=[names[l] for l in labels],
              facecolor=(0,0,0,0),
              linewidth=5,linestyle='-.',
              edgecolor=plcmap('tab10',7))
-pl.title("Breeds' Distribution",fontsize=20);
+pl.title('Breeds` Distribution',fontsize=20)
+set(labels)
 
-img=io.imread(fpath+'01_070.png')[:,:,:3]
+img=io.imread(file_path+'01_070.png')[:,:,:3]
 fig=make_subplots(1,2)
 fig.add_trace(go.Image(z=img),1,1)
-st='The Image and the Histogram of Color Values'
+ti='The Image and the Histogram of Color Values'
 for channel,color in enumerate(['red','green','blue']):
     fig.add_trace(
-        go.Histogram(x=img[...,channel].ravel(),
-                     opacity=.5,marker_color=color,
-                     name='%s channel' %color),1,2)
-fig.update_layout(height=400,width=600,title_text=st)
+        go.Histogram(
+            x=img[...,channel].ravel(),
+            opacity=.5,marker_color=color,
+            name='%s channel'%color),1,2)
+fig.update_layout(height=400,width=700,title_text=ti)
 fig.show()
 
-fpath='../input/horse-breeds/'
 def wimg(n,m):
     display(widgets.Label(
-        value='Label #%s => '%(n-1)+names[n-1]))
+        value='label #%s => '%(n-1)+names[n-1]))
+    file_name='0%s'%n+'_00%s'%m+'.png'
     display(widgets.Image(
-        value=open(fpath+"0%s"%n+"_00%s"%m+".png","rb").read(),
+        value=open(file_path+file_name,'rb').read(),
         format='png',width=200,height=200))
-wimg(1,7)
+wimg(6,8)
 
 fig=make_subplots(1,5); steps=[]
 for step in np.arange(1,6,1):
-    img=io.imread(fpath+'01_00%s.png'%step)[:,:,:3]
+    img=io.imread(file_path+'01_00%s.png'%step)[:,:,:3]
     fig.add_trace(go.Image(z=img),1,int(step))
     fig.data[step-1].visible=False
 fig.data[0].visible=True
-st="Akhal-Teke"
+ti='Akhal-Teke Images'
 for i in range(len(fig.data)):
-    step=dict(method="update",
-              args=[{"visible":[False]*len(fig.data)}])
-    step["args"][0]["visible"][i]=True
+    step=dict(method='update',
+              args=[{'visible':[False]*len(fig.data)}])
+    step['args'][0]['visible'][i]=True
     steps.append(step)
-sliders=[dict(active=0,pad={"t":5},steps=steps)]
+sliders=[dict(active=0,pad={'t':5},steps=steps)]
 fig.update_layout(
-    width=600,height=300,sliders=sliders,
+    width=650,height=300,sliders=sliders,
     template='plotly_dark',
-    title_text="Akhal-Teke Images",title_font=dict(size=15))
+    title_text=ti,title_font=dict(size=15))
 fig.update_xaxes(showticklabels=False)\
    .update_yaxes(showticklabels=False)
 fig.show()
@@ -221,5 +219,6 @@ def display_examples(data):
 # Commented out IPython magic to ensure Python compatibility.
 # %display_examples test
 
-imgs=interpolate_hypersphere(x_train[0],x_train[1],240)
+imgs=np.vstack([interpolate_hypersphere(x_test[0],x_test[1],120),
+                interpolate_hypersphere(x_test[1],x_test[0],120)])
 animate(imgs)
